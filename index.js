@@ -18,13 +18,13 @@ const saltRounds = 10;
 
 
 // Middleware
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET,
-    resave: false,
-    saveUninitialized: true,
-  })
-);
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: process.env.NODE_ENV === "production" }
+}));
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 app.use(passport.initialize());
@@ -202,12 +202,23 @@ passport.use(
 
 // Passport Serialization
 passport.serializeUser((user, done) => {
-  done(null, user);
+  if (!user || !user.id) {
+    return done(new Error("No user id available"));
+  }
+  done(null, user.id); 
 });
 
-passport.deserializeUser((user, done) => {
-  done(null, user);
+
+passport.deserializeUser((id, done) => {
+  db.query('SELECT * FROM users WHERE id = $1', [id], (err, result) => {
+    if (err) return done(err);
+    if (result.rows.length === 0) {
+      return done(new Error("User not found"));
+    }
+    done(null, result.rows[0]); // Ensure user is properly returned
+  });
 });
+
 
 // Start Server
 app.listen(port, () => {
